@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Birthday Treasure Hunt</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: black;
+      color: #00ffcc;
+      font-family: 'Courier New', monospace;
+      overflow: hidden;
+    }
+    /* responsive adjustments */
+    @media (max-width: 600px) {
+      h1 { font-size: 2em; }
+      .typing { font-size: 1.2em; }
+      .note, .treasure { font-size: 1em; }
+      #terminalInput { width: 90%; }
+      #balloonArea .balloon { width: 40px; height: 60px; }
+    }
+
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: -1;
+    }
+
+    .container {
+      text-align: center;
+      margin-top: 80px;
+    }
+
+    /* transitions for smooth flow */
+    .fade-in { animation: fadeIn 0.8s forwards; }
+    .fade-out { animation: fadeOut 0.5s forwards; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+    h1 {
+      font-size: 3em;
+      color: #00ffcc;
+      text-shadow: 0 0 10px #00ffcc;
+    }
+
+    .typing {
+      font-size: 1.5em;
+      border-right: 2px solid #00ffcc;
+      white-space: nowrap;
+      overflow: hidden;
+      width: 0;
+      animation: typing 6s steps(40, end) forwards, blink 0.8s infinite;
+      margin: 20px auto;
+    }
+
+    @keyframes typing {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+
+    @keyframes blink {
+      50% { border-color: transparent; }
+    }
+
+    .note {
+      margin-top: 30px;
+      font-size: 1.2em;
+      color: #ffcccb;
+      text-shadow: 0 0 5px #ff6f61;
+    }
+
+    /* Treasure Hunt */
+    .treasure {
+      margin-top: 40px;
+      font-size: 1.2em;
+      color: #ffd700;
+    }
+
+    #finalPic {
+      display: none;
+      margin-top: 20px;
+    }
+
+    #finalPic img {
+      width: 300px;
+      border-radius: 20px;
+      box-shadow: 0 0 25px #ff6f61;
+      animation: glowPic 2s infinite alternate;
+    }
+
+    @keyframes glowPic {
+      from { box-shadow: 0 0 10px #ff6f61; }
+      to { box-shadow: 0 0 25px #ffd700; }
+    }
+
+    /* Popup Easter Egg */
+    .popup {
+      display: none;
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #111;
+      color: #00ffcc;
+      padding: 20px;
+      border: 2px solid #00ffcc;
+      border-radius: 10px;
+      box-shadow: 0 0 20px #00ffcc;
+      z-index: 10;
+      text-align: left;
+      white-space: pre;
+    }
+    .popup .close-btn {
+      position: absolute;
+      top: 5px;
+      right: 10px;
+      font-size: 1.2em;
+      cursor: pointer;
+      color: #ff6f61;
+    }
+
+    /* Animated balloons */
+    .balloon {
+      position: absolute;
+      bottom: -150px;
+      width: 60px;
+      height: 80px;
+      background: radial-gradient(circle at 30% 30%, #ff6f61, #ffb347);
+      border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+      animation: rise 8s infinite ease-in;
+    }
+    .balloon:nth-child(2) { left: 20%; animation-duration: 7s; }
+    .balloon:nth-child(3) { left: 40%; animation-duration: 6s; }
+    .balloon:nth-child(4) { left: 60%; animation-duration: 7.5s; }
+    .balloon:nth-child(5) { left: 80%; animation-duration: 8.5s; }
+
+    @keyframes rise {
+      0% { transform: translateY(0) rotate(0deg); opacity: 0.8; }
+      100% { transform: translateY(-110vh) rotate(360deg); opacity: 0; }
+    }
+
+    /* confetti pieces */
+    .confetti {
+      position: fixed;
+      width: 8px;
+      height: 8px;
+      background-color: #fff;
+      opacity: 0.8;
+      animation: fall 3s linear forwards;
+    }
+    @keyframes fall {
+      to { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+    }
+
+    /* Button styles */
+    .btn {
+      display: inline-block;
+      margin: 10px;
+      padding: 12px 25px;
+      background: #ff6f61;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.3s ease;
+    }
+    .btn:hover {
+      background: #ffd700;
+      color: #111;
+      box-shadow: 0 0 15px #ffd700;
+    }
+  </style>
+</head>
+<body>
+  <!-- loading overlay -->
+  <div id="loader" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#000;display:flex;align-items:center;justify-content:center;z-index:50;">
+    <div style="color:#00ffcc;font-size:2em;">Loading...</div>
+  </div>
+  <canvas id="matrix"></canvas>
+
+  <!-- Background music (replace 'music.mp3' with your file) -->
+  <audio id="birthdayMusic" src="music.mp3" loop preload="auto"></audio>
+  <!-- victory music / fireworks sound -->
+  <audio id="victoryMusic" src="victory.mp3" preload="auto"></audio>
+
+  <!-- victory popup -->
+  <div class="popup" id="popupVictory" style="display:none;">
+    <h2>🎆 Congratulations! 🎆</h2>
+    <p>The treasure hunt is complete! Enjoy the celebration!</p>
+    <img src="birthday-glow.jpg" alt="Birthday" style="width:200px;display:block;margin:10px auto;animation:glowPic 1.5s infinite alternate;" />
+  </div>
+
+  <!-- floating balloons -->
+  <div id="balloonArea">
+    <div class="balloon"></div>
+    <div class="balloon"></div>
+    <div class="balloon"></div>
+    <div class="balloon"></div>
+    <div class="balloon"></div>
+  </div>
+
+  <div class="container">
+    <h1 id="mainGreeting">🎉 Happy Birthday! 🎂</h1>
+    <div id="cyclingText" class="typing"></div>
+
+    <!-- music toggle -->
+    <button id="musicToggle" style="margin-top:20px;" class="btn">🔊 Play Music</button>
+    <a href="game.html" class="btn" style="margin-top:20px;">🎮 Play Spin Game</a>
+
+    <div class="note">
+      Dear <span id="recipientName">anna</span>,<br>
+      On your special day, may your life be as elegant .......... 
+      life lo konni konni ardham kavu anna endhuku kalisamu ani but ah journey 
+      echey prathi movement memorable ley .
+    </div>
+
+    <!-- Treasure Hunt -->
+    <div class="treasure">
+      <h2>🔍 Birthday Treasure Hunt</h2>
+      <p id="hint">Press "N" to unlock your first hint...</p>
+      <div id="finalPic" style="display:none;">
+        <img src="final-surprise.jpg" alt="Surprise">
+        <p style="color:#ffcccb;">🎁 You found the treasure! 🎁</p>
+        <a href="game.html" class="btn" id="gotoGame" style="display:none;">Go to Spin Game 🎮</a>
+      </div>
+
+      <!-- fake terminal input -->
+      <div id="terminalArea" style="margin-top:30px;">
+        <input type="text" id="terminalInput" placeholder="Type a command (wish, cake, party)" 
+               style="width:60%; padding:8px; font-family:'Courier New',monospace;" />
+      </div>
+
+      <!-- voice command interface -->
+      <div id="voiceArea" style="margin-top:20px;">
+        <button id="voiceBtn" class="btn">🎤 Speak a Command</button>
+        <div id="voiceStatus" style="margin-top:10px;color:#ffcccb;"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Hidden Easter Egg Popup -->
+  <!-- Add these popup sections inside <body> -->
+<div class="popup" id="popupCake">
+  <span class="close-btn" onclick="togglePopup('popupCake')">×</span>
+  <h2>🎂 ASCII Cake 🎂</h2>
+  <pre>
+        ,   ,   ,   ,   ,   ,   ,   ,
+       ||  ||  ||  ||  ||  ||  ||  ||
+     ================================
+     |   🎂   HAPPY BIRTHDAY 🎂    |
+     ================================
+       ||  ||  ||  ||  ||  ||  ||  ||
+  </pre>
+</div>
+
+<div class="popup" id="popupJoke">
+  <span class="close-btn" onclick="togglePopup('popupJoke')">×</span>
+  <h2>💻 Coding Joke 💻</h2>
+  <p>Why do programmers prefer dark mode?<br>Because light attracts bugs! 🐛</p>
+</div>
+
+<div class="popup" id="popupHeart">
+  <span class="close-btn" onclick="togglePopup('popupHeart')">×</span>
+  <h2>❤️ Heartfelt Note ❤️</h2>
+  <p>Dear <span id="popupName">anna</span>, you are the real treasure.<br>
+     i wish always to the god , ma anna eppudhu happy ga undhali annitilo ma anne bagundhali 🥰🦋💕</p>
+</div>
+
+<div class="popup" id="popupMap">
+  <span class="close-btn" onclick="togglePopup('popupMap')">×</span>
+  <h2>🗺️ Treasure Map 🗺️</h2>
+  <pre>
+      X marks the spot!
+      Follow the hints...
+      Treasure unlocked below 🎁
+  </pre>
+</div>
+
+<!-- Generic popup for Ctrl+B (optional alternate surprise) -->
+<div class="popup" id="popup">
+  <span class="close-btn" onclick="togglePopup('popup')">×</span>
+  <h2>🎉 Surprise!</h2>
+  <p>This generic popup appears when you press <code>Ctrl +B</code> (in addition to the other special popups).</p>
+</div>
+
+<script>
+  // Function to toggle popup by ID with smooth fading
+  function togglePopup(id) {
+    const popup = document.getElementById(id);
+    if (popup.style.display === "block") {
+      popup.classList.remove('fade-in');
+      popup.classList.add('fade-out');
+      setTimeout(() => { popup.style.display = 'none'; }, 400);
+    } else {
+      popup.style.display = "block";
+      popup.classList.remove('fade-out');
+      popup.classList.add('fade-in');
+    }
+  }
+
+  function showVictory() {
+    const vp = document.getElementById('popupVictory');
+    vp.style.display = 'block';
+  }
+
+  // close popup when clicking outside
+  document.addEventListener('click', function(e) {
+    const popups = document.querySelectorAll('.popup');
+    popups.forEach(p => {
+      if (p.style.display === 'block' && !p.contains(e.target) && !e.target.classList.contains('btn')) {
+        p.style.display = 'none';
+      }
+    });
+  });
+
+  // key bindings for popup easter eggs
+  document.addEventListener("keydown", function(event) {
+    if (!event.ctrlKey) return;
+    switch (event.key.toLowerCase()) {
+      case "b": // ASCII cake
+        togglePopup("popupCake");
+        break;
+      case "j":
+        togglePopup("popupJoke");
+        break;
+      case "h":
+        togglePopup("popupHeart");
+        break;
+      case "m":
+        togglePopup("popupMap");
+        break;
+      case "g": // generic surprise if needed
+        togglePopup("popup");
+        break;
+    }
+  });
+</script>
+
+  <script>
+    // smooth loader removal
+    window.addEventListener('load', () => {
+      const l = document.getElementById('loader');
+      if (l) {
+        l.classList.add('fade-out');
+        setTimeout(() => l.remove(), 600);
+      }
+    });
+
+    // music control
+    const music = document.getElementById('birthdayMusic');
+    const toggle = document.getElementById('musicToggle');
+    let playing = false;
+    toggle.addEventListener('click', () => {
+      if (playing) {
+        music.pause();
+        toggle.textContent = '🔊 Play Music';
+      } else {
+        music.play().catch(() => {});
+        toggle.textContent = '🔇 Pause Music';
+      }
+      playing = !playing;
+    });
+
+    // terminal command handling
+    const terminalInput = document.getElementById('terminalInput');
+    terminalInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        const cmd = terminalInput.value.trim().toLowerCase();
+        switch(cmd) {
+          case 'wish':
+            togglePopup('popupHeart');
+            break;
+          case 'cake':
+            togglePopup('popupCake');
+            break;
+          case 'party':
+            togglePopup('popupJoke');
+            break;
+          default:
+            alert('Unknown command. Try wish, cake or party.');
+        }
+        terminalInput.value = '';
+      }
+    });
+
+    // initialize voice recognition interface
+    initVoiceCommands();
+
+    function initVoiceCommands() {
+      const status = document.getElementById('voiceStatus');
+      const btn = document.getElementById('voiceBtn');
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        if (status) status.textContent = 'Voice recognition not supported.';
+        if (btn) btn.disabled = true;
+        return;
+      }
+      const recog = new SpeechRecognition();
+      recog.lang = 'en-US';
+      recog.interimResults = false;
+      recog.maxAlternatives = 1;
+      btn.addEventListener('click', () => {
+        status.textContent = 'Listening...';
+        recog.start();
+      });
+      recog.addEventListener('result', (e) => {
+        const text = e.results[0][0].transcript.toLowerCase();
+        status.textContent = 'Heard: "' + text + '"';
+        handleVoiceCommand(text);
+      });
+      recog.addEventListener('end', () => {
+        status.textContent += ' (tap 🎤 to try again)';
+      });
+    }
+
+    function handleVoiceCommand(text) {
+      const status = document.getElementById('voiceStatus');
+      if (text.includes('wish')) togglePopup('popupHeart');
+      else if (text.includes('cake')) togglePopup('popupCake');
+      else if (text.includes('party')) togglePopup('popupJoke');
+      else if (text.includes('birthday') || text.includes('treasure')) {
+        // simulate pressing "n" to advance hints or reveal treasure
+        document.dispatchEvent(new KeyboardEvent('keydown',{key:'n'}));
+      } else {
+        if (status) status.textContent += ' (no command matched)';
+      }
+    }
+
+  </script>
+  <script>
+    // helper for hint transitions
+    function showHint(text) {
+      const hintEl = document.getElementById('hint');
+      if (!hintEl) return;
+      hintEl.classList.remove('fade-in');
+      hintEl.classList.add('fade-out');
+      setTimeout(() => {
+        hintEl.textContent = text;
+        hintEl.classList.remove('fade-out');
+        hintEl.classList.add('fade-in');
+      }, 500);
+    }
+  </script>
+  
+  <script>
+    // Matrix background
+    const canvas = document.getElementById("matrix");
+    const ctx = canvas.getContext("2d");
+    canvas.height = window.innerHeight;
+    canvas.width = window.innerWidth;
+
+    const letters = "   SUNILANNA🥰🥰🥰😘   ";
+    const fontSize = 19;
+    const columns = canvas.width / fontSize;
+    const drops = [];
+    for (let x = 0; x < columns; x++) drops[x] = 1;
+
+    function draw() {
+      ctx.fillStyle = "rgba(0,0,0,0.05)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#00ffcc";
+      ctx.font = fontSize + "px Courier New";
+      for (let i = 0; i < drops.length; i++) {
+        const text = letters[Math.floor(Math.random() * letters.length)];
+        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      }
+    }
+    setInterval(draw, 33);
+
+    // Confetti
+    function createConfetti() {
+      const confetti = document.createElement("div");
+      confetti.classList.add("confetti");
+      confetti.style.left = Math.random() * window.innerWidth + "px";
+      confetti.style.backgroundColor = ["#ff6f61","#ffd700","#00ced1","#9370db"][Math.floor(Math.random()*4)];
+      confetti.style.animationDuration = (Math.random()*3+2) + "s";
+      document.body.appendChild(confetti);
+      setTimeout(() => { confetti.remove(); }, 5000);
+    }
+    setInterval(createConfetti, 200);
+
+    // Treasure Hunt
+    const hints = [
+      "Hint 1: Great coders debug life like code...",
+      "Hint 2: Your birthday wish hides in plain sight...",
+      "Hint 3: Press Ctrl + B for a secret surprise...",
+      "Final Hint: The treasure is unlocked below!"
+    ];
+    let hintIndex = 0;
+    document.addEventListener("keydown", function(event) {
+      if (event.key.toLowerCase() === "n") {
+        if (hintIndex < hints.length) {
+          showHint(hints[hintIndex]);
+          hintIndex++;
+          if (hintIndex === hints.length) {
+            document.getElementById("finalPic").classList.add('fade-in');
+            document.getElementById("finalPic").style.display = "block";
+            document.getElementById("gotoGame").style.display = "inline-block";
+            // play victory music automatically when treasure found
+            document.getElementById('victoryMusic').play().catch(()=>{});
+            showVictory();
+            // scroll down smoothly to treasure section
+            document.getElementById('finalPic').scrollIntoView({behavior:'smooth'});
+          }
+        }
+      }
+    });
+
+
+  </script>
+</body>
+</html>

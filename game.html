@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Birthday Spin Game</title>
+  <style>
+    body {
+      background: linear-gradient(135deg, #ff9a9e, #fad0c4, #fbc2eb, #a6c1ee);
+      font-family: 'Courier New', monospace;
+      text-align: center;
+      padding: 50px;
+    }
+
+    h1 {
+      color: #ff6f61;
+      text-shadow: 0 0 10px #ff6f61;
+    }
+
+    .wheel {
+      margin: 30px auto;
+      width: 300px;
+      height: 300px;
+      border: 10px solid #333;
+      border-radius: 50%;
+      position: relative;
+      overflow: hidden;
+      transition: transform 4s cubic-bezier(0.25, 0.1, 0.25, 1);
+    }
+    /* pointer at top */
+    .wheel:after {
+      content: '';
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-bottom: 20px solid #ff6f61;
+      z-index: 5;
+    }
+
+    .wheel div {
+      position: absolute;
+      width: 50%;
+      height: 50%;
+      background: #ffd700;
+      transform-origin: 100% 100%;
+      clip-path: polygon(0 0, 100% 0, 100% 100%);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .wheel div:nth-child(odd) { background: #ffd700; }
+    .wheel div:nth-child(even) { background: #ff9a9e; }
+    .wheel div .label {
+      font-size: 1.0em;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 0 6px rgba(0,0,0,0.6);
+      transform: rotate(-18deg); /* center label orientation */
+      background: rgba(0,0,0,0.25);
+      padding: 4px 6px;
+      border-radius: 6px;
+    }
+    .wheel div.winner {
+      box-shadow: inset 0 0 10px #ff6f61;
+      border: 3px solid #ff6f61;
+    }
+
+    .btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 25px;
+      background: #ff6f61;
+      color: white;
+      border-radius: 30px;
+      text-decoration: none;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    /* emoji overlay on slices */
+    .slice-emoji {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      font-size: 1.4rem;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+      pointer-events: none;
+    }
+
+    /* emoji editor popup */
+    .emoji-editor { text-align:left; max-width:520px; }
+    .emoji-row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; }
+    .emoji-row input[type="text"] { width:72px; font-size:1.2rem; padding:6px; }
+    .emoji-row .img-name { color:#ffd700; margin-right:12px; font-weight:bold; }
+    .popup {
+      display: none;
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #111;
+      color: #00ffcc;
+      padding: 20px;
+      border: 2px solid #00ffcc;
+      border-radius: 10px;
+      box-shadow: 0 0 20px #00ffcc;
+      z-index: 10;
+      text-align: center;
+    }
+    .popup .close-btn {
+      position: absolute;
+      top: 5px;
+      right: 10px;
+      font-size: 1.2em;
+      cursor: pointer;
+      color: #ff6f61;
+    }
+    /* full-screen fireworks canvas */
+    #fireworksCanvas { background: transparent; }
+    @keyframes glowPic {
+      from { box-shadow: 0 0 10px #ff6f61; }
+      to { box-shadow: 0 0 25px #ffd700; }
+    }
+
+    .cards {
+      margin-top: 40px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+    }
+
+    /* confetti pieces (reuse style from birthday page) */
+    .confetti {
+      position: fixed;
+      width: 8px;
+      height: 8px;
+      background-color: #fff;
+      opacity: 0.8;
+      animation: fall 3s linear forwards;
+    }
+    @keyframes fall {
+      to { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+    }
+
+    .card {
+      width: 200px;
+      perspective: 1000px;
+    }
+    .card-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transition: transform 0.6s;
+      transform-style: preserve-3d;
+    }
+    .card.flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+    .card-front, .card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      border-radius: 15px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    .card-front {
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2em;
+    }
+    .card-back {
+      background: white;
+      transform: rotateY(180deg);
+      padding: 15px;
+      box-sizing: border-box;
+    }
+    .open-btn {
+      display:inline-block;
+      margin-top:8px;
+      padding:8px 12px;
+      background:#00ced1;
+      color:#111;
+      border-radius:8px;
+      text-decoration:none;
+      font-weight:bold;
+    }   
+    .card:hover .card-front {
+      transform: scale(1.05);
+    }
+
+    /* responsive design */
+    @media (max-width: 600px) {
+      .wheel { width: 200px; height: 200px; }
+      .card { width: 150px; }
+    }
+
+    /* transitions */
+    .fade-in { animation: fadeIn 0.6s forwards; }
+    .fade-out { animation: fadeOut 0.4s forwards; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+  </style>
+</head>
+<body>
+  <!-- loading overlay -->
+  <div id="loader" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;display:flex;align-items:center;justify-content:center;z-index:50;">
+    <div style="color:#ff6f61;font-size:2em;">Loading...</div>
+  </div>
+  <h1>🎮 Spin the Wheel 🎉</h1>
+  <p>Spin to reveal a quote and memory!</p>
+
+  <button id="spinBtn" class="btn" onclick="spinWheel()">Spin Now</button>
+  <button id="editEmojiBtn" class="btn" onclick="openEmojiEditor()">Edit Emojis</button>
+  <p style="font-size:0.9em;color:#333;margin-top:5px;">(or press <code>Space</code> / <code>S</code> on keyboard)</p>
+  <!-- spin sound -->
+  <audio id="spinSound" src="spin.mp3" preload="auto"></audio>
+  <!-- small pop sound when spin ends -->
+  <audio id="popSound" src="pop.mp3" preload="auto"></audio>
+  <audio id="paperSound" src="paper.mp3" preload="auto"></audio>
+  <!-- ⭐ CELEBRATION SONG: Plays when all 8 spins are collected ⭐ -->
+  <audio id="celebrationSong" src="Aradhya.mp3" preload="auto" loop></audio>
+
+  <!-- visual wheel -->
+  <div class="wheel" id="wheel">
+    <!-- eight numbered slices with images, 45° apart (360/8) -->
+    <!-- ⭐⭐⭐ HINT: Modify wheel images here - Each slice displays p2.jpg through p9.jpg (p10 reserved for special popup) ⭐⭐⭐ -->
+    <div style="transform: rotate(0deg);background-image:url('p2.jpg');background-size:cover;background-position:center" data-img="p2.jpg"><span class="label">1</span><span class="slice-emoji" data-img="p2.jpg">🎈</span></div>
+    <div style="transform: rotate(45deg);background-image:url('p3.jpg');background-size:cover;background-position:center" data-img="p3.jpg"><span class="label">2</span><span class="slice-emoji" data-img="p3.jpg">🎁</span></div>
+    <div style="transform: rotate(90deg);background-image:url('p4.jpg');background-size:cover;background-position:center" data-img="p4.jpg"><span class="label">3</span><span class="slice-emoji" data-img="p4.jpg">🎂</span></div>
+    <div style="transform: rotate(135deg);background-image:url('p5.jpg');background-size:cover;background-position:center" data-img="p5.jpg"><span class="label">4</span><span class="slice-emoji" data-img="p5.jpg">🎉</span></div>
+    <div style="transform: rotate(180deg);background-image:url('p6.jpg');background-size:cover;background-position:center" data-img="p6.jpg"><span class="label">5</span><span class="slice-emoji" data-img="p6.jpg">💫</span></div>
+    <div style="transform: rotate(225deg);background-image:url('p7.jpg');background-size:cover;background-position:center" data-img="p7.jpg"><span class="label">6</span><span class="slice-emoji" data-img="p7.jpg">💖</span></div>
+    <div style="transform: rotate(270deg);background-image:url('p8.jpg');background-size:cover;background-position:center" data-img="p8.jpg"><span class="label">7</span><span class="slice-emoji" data-img="p8.jpg">✨</span></div>
+    <div style="transform: rotate(315deg);background-image:url('p9.jpg');background-size:cover;background-position:center" data-img="p9.jpg"><span class="label">8</span><span class="slice-emoji" data-img="p9.jpg">🕯️</span></div>
+  </div>
+
+  <div id="result"></div>
+
+  <div class="cards" id="cards"></div>
+
+  <!-- Victory popup for game page -->
+  <!-- victory popup and fireworks container -->
+  <div class="popup" id="popupVictoryGame" style="display:none;">
+    <span class="close-btn" onclick="togglePopup('popupVictoryGame'); stopFireworks();">×</span>
+    <h2>🎉 Congratulations! 🎉</h2>
+    <p>You started your journey! Thanks for playing.</p>
+    <!-- Display image for first popup -->
+    <img src="birthday-glow.jpg" alt="Celebration" style="width:150px;display:block;margin:15px auto;border:2px solid #ffd700;border-radius:10px;animation:glowPic 1.5s infinite alternate;" />
+    <p style="color:#ffd700;font-weight:bold;margin-top:10px;">✨ Keep spinning to collect all moments! ✨</p>
+  </div>
+  
+  <!-- ⭐ SPECIAL 8TH SPIN POPUP: Displays when user spins for the 8th time ⭐ -->
+  <div class="popup" id="popupSpin8" style="display:none;">
+    <span class="close-btn" onclick="togglePopup('popupSpin8'); stopFireworks();">×</span>
+    <h2>🎊 SPECIAL MILESTONE! 🎊</h2>
+    <p>You've reached the 8th spin! Here's a special moment:</p>
+    <img src="p10.jpg" alt="Special Moment" style="width:180px;display:block;margin:15px auto;border:3px solid #ffd700;border-radius:10px;animation:glowPic 1.5s infinite alternate;" />
+    <p style="margin-top:15px;font-weight:bold;color:#ffd700;">💝 This moment is extra special! 💝</p>
+  </div>
+    <!-- final celebration message overlay -->
+    <div id="finalOverlay" style="display:none;position:fixed;left:0;top:0;width:100%;height:100%;z-index:30;pointer-events:none;">
+      <div id="finalMessage" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#111;color:#00ffcc;padding:20px;border-radius:12px;border:2px solid #00ffcc;box-shadow:0 0 20px #00ffcc;font-size:1.6rem;pointer-events:auto;display:none;">
+        🎉 Happy birthday to u annaa 🎉
+         i feel u like  my own brother 💕🦋,ninnu chala  ekkuvaga nammuthunna ☺️ 
+         eppudhu nannu hurt iyyela cheyyadhu ...nenu  hurt ithey malli nenu unnadu chelli ga ....
+         i belive u cant hurt me because i know u care for me a lot .
+             once again happy birthday anna  🎂🎈🎉
+      </div>
+    </div>
+  <canvas id="fireworksCanvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;z-index:20;"></canvas>
+
+  <script>
+    // Emoji mapping: image -> emoji. Saved to localStorage under 'emojiMap'
+    const defaultEmojiMap = {
+      'p2.jpg':'😍😍💕','p3.jpg':'😘🤞','p4.jpg':'🐒🐒','p5.jpg':'🦋🧿',
+      'p6.jpg':'💫.💕','p7.jpg':'💖','p8.jpg':'✨','p9.jpg':'🕯️','p10.jpg':'🏆🦋'
+    };
+    function loadEmojiMap(){
+      try{
+        const raw = localStorage.getItem('emojiMap');
+        if(!raw) return {...defaultEmojiMap};
+        return {...defaultEmojiMap, ...JSON.parse(raw)};
+      }catch(e){return {...defaultEmojiMap};}
+    }
+    function saveEmojiMap(map){ localStorage.setItem('emojiMap', JSON.stringify(map)); }
+    let emojiMap = loadEmojiMap();
+
+    function getEmojiForImage(img){ return emojiMap[img] || defaultEmojiMap[img] || '' };
+    function applyEmojisToSlices(){
+      document.querySelectorAll('.slice-emoji').forEach(el=>{
+        const img = el.getAttribute('data-img');
+        el.textContent = getEmojiForImage(img) || '';
+      });
+    }
+
+    // open editor popup to allow user to change emoji mapping
+    function openEmojiEditor(){
+      const id = 'popupEmojiEditor';
+      let popup = document.getElementById(id);
+      if(!popup){
+        popup = document.createElement('div');
+        popup.className = 'popup'; popup.id = id; popup.style.display='none';
+        popup.innerHTML = `<span class="close-btn" onclick="togglePopup('${id}')">×</span>
+          <h2>Choose Emojis</h2>
+          <div class="emoji-editor" id="emojiEditorList"></div>
+          <div style="text-align:right;margin-top:12px;"><button class="btn" onclick="saveEmojiEditor()">Save</button></div>`;
+        document.body.appendChild(popup);
+      }
+      buildEmojiEditor();
+      togglePopup(id);
+    }
+    function buildEmojiEditor(){
+      const container = document.getElementById('emojiEditorList');
+      container.innerHTML='';
+      // list images used (p2..p10)
+      const imagesForEditor = ['p2.jpg','p3.jpg','p4.jpg','p5.jpg','p6.jpg','p7.jpg','p8.jpg','p9.jpg','p10.jpg'];
+      imagesForEditor.forEach(img=>{
+        const row = document.createElement('div'); row.className='emoji-row';
+        const left = document.createElement('div'); left.style.display='flex'; left.style.alignItems='center';
+        const name = document.createElement('div'); name.className='img-name'; name.textContent = img;
+        const preview = document.createElement('div'); preview.style.fontSize='1.6rem'; preview.style.marginLeft='6px'; preview.textContent = getEmojiForImage(img)||'';
+        left.appendChild(name); left.appendChild(preview);
+        const input = document.createElement('input'); input.type='text'; input.maxLength=2; input.value = getEmojiForImage(img)||'';
+        input.oninput = ()=>{ preview.textContent = input.value; };
+        row.appendChild(left); row.appendChild(input);
+        container.appendChild(row);
+      });
+    }
+    function saveEmojiEditor(){
+      const container = document.getElementById('emojiEditorList');
+      const rows = container.querySelectorAll('.emoji-row');
+      rows.forEach((row,i)=>{
+        const img = ['p2.jpg','p3.jpg','p4.jpg','p5.jpg','p6.jpg','p7.jpg','p8.jpg','p9.jpg','p10.jpg'][i];
+        const val = row.querySelector('input').value.trim();
+        if(val) emojiMap[img] = val; else delete emojiMap[img];
+      });
+      saveEmojiMap(emojiMap);
+      applyEmojisToSlices();
+      togglePopup('popupEmojiEditor');
+    }
+    // apply initially
+    setTimeout(()=>applyEmojisToSlices(), 50);
+    // ⭐⭐⭐ IMPORTANT: Modify quotes for each spin ⭐⭐⭐
+    const quotes = [
+      "ma anna 🦒🦒",
+      "em cheyyalemu💪💪.",
+      "long list📝📝.",
+      "anna ewwwwwwwww.",
+      "muthi chuda😏.",
+      "hero.",
+      "white pilli.",
+      "meowwwwwww😻😽."
+    ];
+
+    // ⭐⭐⭐ IMPORTANT: Images array (p2.jpg to p9.jpg - 8 images, no p1) ⭐⭐⭐
+    // p10.jpg is reserved ONLY for the 8th spin special popup
+    const images = [
+      "p2.jpg","p3.jpg","p4.jpg","p5.jpg","p6.jpg",
+      "p7.jpg","p8.jpg","p9.jpg"
+    ];
+
+    // remove loader when ready
+    window.addEventListener('load', () => {
+      const l = document.getElementById('loader');
+      if (l) { l.classList.add('fade-out'); setTimeout(() => l.remove(), 600); }
+    });
+
+    // ⭐ SPIN COUNTER: Tracks total spins to trigger 8th spin special effect ⭐
+    window.spinCount = 0;
+    // ⭐ SHOWN IMAGES TRACKER: Stores which images have been shown to avoid repeats ⭐
+    window.shownImages = [];
+
+    function spinWheel() {
+      // increment spin count
+      window.spinCount++;
+      
+      const wheel = document.getElementById('wheel');
+      const sound = document.getElementById('spinSound');
+      // remove any previous highlights
+      Array.from(wheel.children).forEach(ch => ch.classList.remove('winner'));
+      // disable controls while spinning
+      document.getElementById('spinBtn').disabled = true;
+      // start sound (loop while spinning)
+      sound.currentTime = 0;
+      sound.play().catch(() => {});
+
+      // ⭐ SELECT IMAGE: pick unique image for first 8 spins (p2-p9) ⭐
+      let image;
+      if (window.spinCount <= 8) {
+        // Get a random image from p2-p9 that hasn't been shown yet
+        const availableImages = images.filter(img => !window.shownImages.includes(img));
+        if (availableImages.length > 0) {
+          image = availableImages[Math.floor(Math.random() * availableImages.length)];
+          window.shownImages.push(image);
+        } else {
+          // If all 8 shown, reset and pick any
+          image = images[Math.floor(Math.random() * images.length)];
+        }
+      } else {
+        // After 8 spins, use any image from p2-p9
+        image = images[Math.floor(Math.random() * images.length)];
+      }
+      // determine which slice (0..7) contains the selected image
+      const imagesForWheel = ["p2.jpg","p3.jpg","p4.jpg","p5.jpg","p6.jpg","p7.jpg","p8.jpg","p9.jpg"];
+      const sliceIndex = imagesForWheel.indexOf(image);
+      // pick quote matched to sliceIndex if available
+      const quote = quotes[sliceIndex] || quotes[0];
+      // calculate final rotation (full turns + offset to land on slice center)
+      // ⭐ SLICE ANGLE: 45° for 8 slices (360/8 = 45) ⭐
+      const sliceAngle = 360 / 8;
+      const rotations = 4 + Math.floor(Math.random() * 4); // 4–7 full spins
+      const targetAngle = 360 * rotations + (sliceIndex * sliceAngle) + sliceAngle/2;
+      const duration = 3 + Math.random() * 2; // 3–5 seconds
+      wheel.style.transition = `transform ${duration}s cubic-bezier(0.33, 1, 0.68, 1)`;
+      wheel.style.transform = `rotate(${targetAngle}deg)`;
+      // apply current emoji mapping to the displayed slices (in case user updated)
+      applyEmojisToSlices();
+
+      // wait for animation to finish
+      setTimeout(() => {
+        // stop spin sound
+        sound.pause();
+        sound.currentTime = 0;
+        // play brief pop to mark the landing
+        const pop = document.getElementById('popSound');
+        if (pop) { pop.currentTime = 0; pop.play().catch(() => {}); }
+        const resEl = document.getElementById("result");
+        resEl.classList.remove('fade-in');
+        resEl.classList.add('fade-out');
+        setTimeout(() => {
+          resEl.innerHTML = `<h2>🎯 Your Slice: ${sliceIndex+1}</h2><p>${quote}</p>`;
+          resEl.classList.remove('fade-out');
+          resEl.classList.add('fade-in');
+        }, 400);
+        // generate some confetti on result
+        launchConfetti();
+        const card = document.createElement("div");
+        card.className = "card";
+        // create flipable structure with a View button that opens the image
+        card.innerHTML = `
+          <div class="card-inner">
+            <div class="card-front">${getEmojiForImage(image) || (sliceIndex+1)}</div>
+            <div class="card-back">
+              <img src="${image}" alt="Memory" style="width:100%;border-radius:8px;" />
+              <p>${quote}</p>
+              <a class="open-btn" href="${image}" target="_blank" rel="noopener">View Photo</a>
+            </div>
+          </div>`;
+        document.getElementById("cards").appendChild(card);
+        card.addEventListener('click', () => {
+          card.classList.toggle('flipped');
+        });
+        
+        // ⭐ 8TH SPIN TRIGGER: Special popup shows when spinCount reaches 8 ⭐
+        if (window.spinCount === 8) {
+          togglePopup('popupSpin8');
+        } else if (!spinWheel.played) {
+          togglePopup('popupVictoryGame');
+          spinWheel.played = true;
+        }
+        // highlight the winning slice (find slice by image)
+        const slice = document.querySelector(`#wheel [data-img="${image}"]`);
+        if (slice) slice.classList.add('winner');
+        // re-enable controls
+        document.getElementById('spinBtn').disabled = false;
+        // normalize transform to avoid huge numbers
+        wheel.style.transition = '';
+        const normalized = targetAngle % 360;
+        wheel.style.transform = `rotate(${normalized}deg)`;
+        // ⭐ FULL CELEBRATION TRIGGER: When all 8 spins collected, shows final message ⭐
+        // track collected cards and trigger full celebration when all 8 are collected
+        window.collectedCount = (window.collectedCount || 0) + 1;
+        if (!window.collectedCards) window.collectedCards = [];
+        // store the card element reference
+        window.collectedCards.push(card);
+        if (window.collectedCount === 8) {
+          // short delay to let last card render
+          setTimeout(() => celebrateAll(), 600);
+        }
+      }, duration * 1000);
+    }
+
+    // allow repeated spins to reset rotation if needed
+    document.getElementById('wheel').addEventListener('transitionend', () => {
+      document.getElementById('wheel').style.transition = '';
+    });
+
+    // ⭐ KEYBOARD SHORTCUTS: Space/S = Spin, V = Toggle victory popup ⭐
+    document.addEventListener('keydown', e => {
+      if (e.key === ' ' || e.key.toLowerCase() === 's') {
+        spinWheel();
+      } else if (e.key.toLowerCase() === 'v') {
+        togglePopup('popupVictoryGame');
+      }
+    });
+
+    // reusable popup toggle (clicking the X will call this too)
+    function togglePopup(id) {
+      const popup = document.getElementById(id);
+      if (popup.style.display === 'block') {
+        popup.classList.remove('fade-in');
+        popup.classList.add('fade-out');
+        setTimeout(() => { popup.style.display = 'none'; }, 400);
+      } else {
+        popup.style.display = 'block';
+        popup.classList.remove('fade-out');
+        popup.classList.add('fade-in');
+      }
+      if (id === 'popupVictoryGame' && popup.style.display === 'block') {
+        startFireworks();
+      }
+      if (id === 'popupVictoryGame' && popup.style.display === 'none') {
+        stopFireworks();
+      }
+    }
+    // optional: close when user clicks outside the popup
+    document.addEventListener('click', function(e) {
+      const popups = document.querySelectorAll('.popup');
+      popups.forEach(p => {
+        if (p.style.display === 'block' && !p.contains(e.target) && !e.target.classList.contains('btn')) {
+          p.style.display = 'none';
+          if (p.id==='popupVictoryGame') stopFireworks();
+        }
+      });
+    });
+
+    // close overlays/popup with Escape
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.popup').forEach(p => p.style.display = 'none');
+        const fo = document.getElementById('finalOverlay');
+        if (fo) fo.style.display = 'none';
+        stopFireworks();
+        try { } catch(e){}
+      }
+    });
+
+    // fireworks animation logic
+    let fwCtx, fwCanvas, fwRaf;
+    const particles = [];
+    function startFireworks() {
+      fwCanvas = document.getElementById('fireworksCanvas');
+      fwCanvas.width = window.innerWidth;
+      fwCanvas.height = window.innerHeight;
+      fwCtx = fwCanvas.getContext('2d');
+      fwCanvas.style.display = 'block';
+      animateFireworks();
+    }
+    function stopFireworks() {
+      cancelAnimationFrame(fwRaf);
+      if (fwCanvas) fwCanvas.style.display = 'none';
+    }
+
+    // confetti helper for spin result
+    function launchConfetti() {
+      for (let i = 0; i < 30; i++) {
+        const c = document.createElement('div');
+        c.className = 'confetti';
+        c.style.left = Math.random() * window.innerWidth + 'px';
+        c.style.backgroundColor = ['#ff6f61','#ffd700','#00ced1','#9370db'][Math.floor(Math.random()*4)];
+        c.style.animationDuration = (Math.random()*3+2) + 's';
+        document.body.appendChild(c);
+        setTimeout(() => c.remove(), 5000);
+      }
+    }
+
+    function createFirework() {
+      const x = Math.random() * fwCanvas.width;
+      const y = Math.random() * fwCanvas.height / 2;
+      const count = 30 + Math.random()*30;
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x, y,
+          vx: (Math.random()-0.5)*4,
+          vy: (Math.random()-0.5)*4,
+          alpha: 1,
+          color: `hsl(${Math.random()*360},100%,60%)`
+        });
+      }
+    }
+    function animateFireworks() {
+      fwCtx.clearRect(0,0,fwCanvas.width,fwCanvas.height);
+      if (Math.random() < 0.05) createFirework();
+      particles.forEach((p,i)=>{
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= 0.02;
+        fwCtx.fillStyle = p.color;
+        fwCtx.globalAlpha = p.alpha;
+        fwCtx.beginPath();
+        fwCtx.arc(p.x,p.y,2,0,2*Math.PI);
+        fwCtx.fill();
+        if (p.alpha <= 0) particles.splice(i,1);
+      });
+      fwRaf = requestAnimationFrame(animateFireworks);
+    }
+
+    // ⭐⭐⭐ FINAL CELEBRATION FUNCTION: Animates cards to center and displays final message ⭐⭐⭐
+    // This runs when all 10 cards have been collected
+    function celebrateAll() {
+      const paper = document.getElementById('paperSound');
+      const cards = Array.from(document.querySelectorAll('#cards .card'));
+      const clones = [];
+      // create clones positioned over originals
+      cards.forEach((c, idx) => {
+        const rect = c.getBoundingClientRect();
+        const clone = c.cloneNode(true);
+        clone.style.position = 'fixed';
+        clone.style.left = rect.left + 'px';
+        clone.style.top = rect.top + 'px';
+        clone.style.width = rect.width + 'px';
+        clone.style.height = rect.height + 'px';
+        clone.style.margin = '0';
+        clone.style.transition = 'transform 900ms ease, left 900ms ease, top 900ms ease, width 900ms ease, height 900ms ease';
+        document.body.appendChild(clone);
+        clones.push(clone);
+        // hide original
+        c.style.visibility = 'hidden';
+      });
+
+      // force reflow then move clones to center (staggered)
+      void document.body.offsetWidth;
+      clones.forEach((clone, i) => {
+        setTimeout(() => {
+          clone.style.left = '50%';
+          clone.style.top = '50%';
+          clone.style.transform = 'translate(-50%, -50%) scale(0.9)';
+          clone.style.width = '160px';
+          clone.style.height = '120px';
+        }, i * 80);
+      });
+
+      // when last clone finished, play paper sound and speak message
+      const last = clones[clones.length-1];
+      last.addEventListener('transitionend', function onEnd() {
+        last.removeEventListener('transitionend', onEnd);
+        // play paper sound
+        if (paper) { paper.currentTime = 0; paper.play().catch(()=>{}); }
+        // show final message and speak
+        const overlay = document.getElementById('finalOverlay');
+        const msg = document.getElementById('finalMessage');
+        overlay.style.display = 'block';
+        msg.style.display = 'block';
+        // ⭐ PLAY CELEBRATION SONG during final message ⭐
+        const song = document.getElementById('celebrationSong');
+        if (song) { song.currentTime = 0; song.play().catch(()=>{}); }
+        // also trigger fireworks/victory sound if available
+        try { document.getElementById('victoryFire').play().catch(()=>{}); } catch(e){}
+      });
+    }
+
+  </script>
+</body>
+</html>
